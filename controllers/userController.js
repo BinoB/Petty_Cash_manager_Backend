@@ -73,13 +73,11 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate Request
   if (!email || !password) {
     res.status(400);
-    throw new Error("Please add email and password");
+    throw new Error("Please provide email and password");
   }
 
-  // Check if user exists
   const user = await User.findOne({ email });
 
   if (!user) {
@@ -87,37 +85,32 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new Error("User not found, please signup");
   }
 
-  // User exists, check if password is correct
   const passwordIsCorrect = await bcrypt.compare(password, user.password);
 
-  //   Generate Token
-  const token = generateToken(user._id);
-  
-  if(passwordIsCorrect){
-   // Send HTTP-only cookie
-  res.cookie("token", token, {
-    path: "/",
-    httpOnly: true,
-    expires: new Date(Date.now() + 1000 * 86400), // 1 day
-    sameSite: "none",
-    secure: true,
-  });
-}
-  if (user && passwordIsCorrect) {
-    const { _id, name, email, photo, phone, bio } = user;
-    res.status(200).json({
-      _id,
-      name,
-      email,
-      photo,
-      phone,
-      bio,
-      token,
-    });
-  } else {
+  if (!passwordIsCorrect) {
     res.status(400);
     throw new Error("Invalid email or password");
   }
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "1d",
+  });
+
+  // Set token in cookie
+  res.cookie("token", token, {
+    httpOnly: true,
+    expires: new Date(Date.now() + 1000 * 60 * 60 * 24), // 1 day
+    sameSite: "none",
+    secure: true,
+  });
+
+  res.status(200).json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    // other user data
+    token,
+  });
 });
 
 // Logout User
